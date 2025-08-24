@@ -20,9 +20,12 @@
       height: 0;
       border-left: 20px solid transparent;
       border-right: 20px solid transparent;
-      border-top: 30px solid red;
+      border-bottom: 30px solid red;
       margin: 0 auto;
-      margin-top: -10px;
+      margin-top: -390px;
+      position: relative;
+      top: 200px;
+      z-index: 10;
     }
   </style>
 </head>
@@ -30,9 +33,9 @@
   <h1>🎯 Spin the Wheel - Loyalty Points</h1>
   <input type="text" id="affiliateId" placeholder="Enter Affiliate ID" style="text-align:center; width: 250px;" />
   <br>
-  <button onclick="spinWheel()">Spin the Wheel</button>
-  <canvas id="wheelCanvas" width="400" height="400"></canvas>
   <div class="arrow"></div>
+  <canvas id="wheelCanvas" width="400" height="400"></canvas>
+  <button onclick="spinWheel()">Spin the Wheel</button>
   <p id="wheelResult"></p>
   <h2>🏆 Current Spin</h2>
   <table id="winnerTable">
@@ -96,7 +99,7 @@
       const selectedPrize = weightedPrizes[Math.floor(Math.random() * weightedPrizes.length)];
       const prizeIndex = prizes.findIndex(p => p.label === selectedPrize);
       const arc = 2 * Math.PI / prizes.length;
-      const endAngle = (Math.PI * 2 * spins) + ((prizes.length - prizeIndex) * arc) - arc / 2;
+      const endAngle = (Math.PI * 2 * spins) + ((prizes.length - prizeIndex) * arc);
       let start = null;
 
       function animate(timestamp) {
