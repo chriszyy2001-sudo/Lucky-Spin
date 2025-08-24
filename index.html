@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Spin the Wheel - Loyalty Points</title>
+  <style>
+    body { font-family: Arial, sans-serif; text-align: center; padding: 20px; }
+    h1 { color: #4CAF50; }
+    .wheel-wrap { position: relative; width: 400px; margin: 10px auto 0; }
+    #wheelCanvas { display: block; margin: 0 auto; }
+    /* Face-down pointer sitting above the wheel */
+    .pointer {
+      position: absolute; left: 50%; transform: translateX(-50%);
+      top: -12px; /* just above the circle edge */
+      width: 0; height: 0;
+      border-left: 18px solid transparent;
+      border-right: 18px solid transparent;
+      border-bottom: 28px solid red; /* ▼ points down */
+      z-index: 2;
+    }
+    input, button { padding: 10px; font-size: 16px; margin: 10px; }
+    #wheelResult { font-weight: bold; font-size: 20px; margin-top: 16px; }
+    table { margin: 20px auto; border-collapse: collapse; width: 100%; max-width: 520px; }
+    th, td { border: 1px solid #ccc; padding: 8px; }
+    th { background: #f2f2f2; }
+    #closeSession { background-color: #2196F3; color: white; }
+    #resetList { background-color: #9E9E9E; color: white; }
+  </style>
+</head>
+<body>
+  <h1>🎯 Spin the Wheel - Loyalty Points</h1>
+
+  <input type="text" id="affiliateId" placeholder="Enter Affiliate ID" style="text-align:center; width: 260px;" />
+
+  <div class="wheel-wrap">
+    <div class="pointer"></div>
+    <canvas id="wheelCanvas" width="400" height="400"></canvas>
+  </div>
+
+  <button onclick="spinWheel()">Spin the Wheel</button>
+  <p id="wheelResult"></p>
+
+  <h2>🏆 Current Spin</h2>
+  <table id="winnerTable">
+    <thead><tr><th>Affiliate ID</th><th>Prize</th></tr></thead>
+    <tbody></tbody>
+  </table>
+
+  <button id="resetList" onclick="resetDisplay()">🧹 Reset Display</button>
+  <button id="closeSession" onclick="closeSession()">❌ Close Session & Download CSV</button>
+
+  <script>
+    // Prize config and colors
+    const prizes = [
+      { label: "5 Loyalty Points",  weight: 75, color: "#FFCE54" },
+      { label: "10 Loyalty Points", weight: 10, color: "#AC92EC" },
+      { label: "20 Loyalty Points", weight: 10, color: "#4FC1E9" },
+      { label: "100 Loyalty Points",weight: 5,  color: "#ED5565" }
+    ];
+    const n = prizes.length;
+    const ARC = (2 * Math.PI) / n;
+
+    // Weighted list for random selection
+    const weighted = prizes.flatMap(p => Array(p.weight).fill(p.label));
+
+    // Canvas
+    const canvas = document.getElementById("wheelCanvas");
+    const ctx = canvas.getContext("2d");
+    const R = canvas.width / 2;
+
+    // Session records
+    const session = [];
+    const tbody = document.querySelector("#winnerTable tbody");
+
+    // Draw the wheel at a given rotation
+    function drawWheel(rotation = 0) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < n; i++) {
+        const start = i * ARC + rotation;
+        const end   = start + ARC;
+
+        // slice
+        ctx.beginPath();
+        ctx.moveTo(R, R);
+        ctx.arc(R, R, R, start, end);
+        ctx.closePath();
+        ctx.fillStyle = prizes[i].color;
+        ctx.fill();
+        ctx.strokeStyle = "#fff";
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // label
+        ctx.save();
+        ctx.translate(R, R);
+        ctx.rotate(start + ARC/2);
+        ctx.textAlign = "right";
+        ctx.fillStyle = "#222";
+        ctx.font = "bold 13px Arial";
+        ctx.fillText(prizes[i].label, R - 10, 4);
+        ctx.restore();
+      }
+      // wheel outline
+      ctx.beginPath();
+      ctx.arc(R, R, R, 0, 2*Math.PI);
+      ctx.strokeStyle = "#444";
+      ctx.lineWidth = 4;
+      ctx.stroke();
+    }
+
+    drawWheel(0);
+
+    // Spin logic: choose prize by weight, then rotate so its center is at the pointer (12 o'clock)
+    let isSpinning = false;
+
+    function spinWheel() {
+      if (isSpinning) return;
+
+      const id = document.getElementById("affiliateId").value.trim();
+      if (!id) { alert("Please enter an Affiliate ID."); return; }
+
+      isSpinning = true;
+
+      // 1) Weighted pick
+      const winLabel = weighted[Math.floor(Math.random() * weighted.length)];
+      const winIndex = prizes.findIndex(p => p.label === winLabel);
+
+      // 2) Compute final rotation so the chosen slice center sits at 12 o'clock.
+      // In canvas, the 12 o'clock direction equals angle = -PI/2.
+      // Our slice center angle is i*ARC + rotation + ARC/2.
+      // Set i*ARC + rotation_final + ARC/2 = -PI/2 (mod 2PI)
+      // => rotation_final = -PI/2 - ARC/2 - i*ARC + k*2PI
+      const baseAlign = -Math.PI/2 - ARC/2 - winIndex*ARC;
+
+      // at least 5 full spins
+      const spins = 5 + Math.floor(Math.random() * 2); // 5 or 6
+      const rotationFinal = baseAlign + spins * 2 * Math.PI;
+
+      // Animate rotation from 0 to rotationFinal
+      const dur = 3200;
+      const t0 = performance.now();
+
+      function anim(t) {
+        const p = Math.min((t - t0) / dur, 1);
+        const ease = 1 - Math.pow(1 - p, 3); // ease-out
+        const rot = rotationFinal * ease;
+        drawWheel(rot);
+
+        if (p < 1) {
+          requestAnimationFrame(anim);
+        } else {
+          // Record & show result
+          document.getElementById("wheelResult").textContent = `🎉 ${id} won ${winLabel}!`;
+          tbody.innerHTML = "";
+          const row = tbody.insertRow();
+          row.insertCell(0).textContent = id;
+          row.insertCell(1).textContent = winLabel;
+          session.push({ id, prize: winLabel });
+          isSpinning = false;
+        }
+      }
+      requestAnimationFrame(anim);
+    }
+
+    function resetDisplay() {
+      document.getElementById("wheelResult").textContent = "";
+      tbody.innerHTML = "";
+    }
+
+    function closeSession() {
+      if (session.length === 0) { alert("No spins have occurred yet."); return; }
+      let csv = "Affiliate ID,Prize\n";
+      session.forEach(r => { csv += `${r.id},${r.prize}\n`; });
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "winning_list.csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  </script>
+</body>
+</html>
